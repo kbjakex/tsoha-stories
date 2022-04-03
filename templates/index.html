@@ -33,13 +33,13 @@
 </div>
 <hr>
 {% endfor %}
-<hr>
+<br>
 {% if session.username %}
 <h3>Add new story</h3>
 <form action="/addstory", method="POST">
     Title:<br>
     <input type="text" name="title"><br>
-    Contents:<br>
+    Contents (max. 256 characters):<br>
     <textarea name="contents" rows="3" cols="50" maxlength="250"></textarea><br>
 
     <input type="submit", value="Send">
