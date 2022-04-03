@@ -12,6 +12,12 @@ Sovelluksen ominaisuuksia:
 * Käyttäjä voi järjestää etusivulla näkemänsä tarinat tykkäysten, julkaisuajan tai julkaisijan perusteella.
 * Ylläpitäjä voi poistaa julkaisuja.
 
+## Sovelluksen tila
+
+Sovelluksesta puuttuu edelleen valitettavasti hyvin oleellisia ominaisuuksia, kuten toisen tarinan jatkaminen. Myös postausten tykkääminen, tarinoiden järjesteleminen ja ylläpitäjäoikeudet puuttuvat. Sovelluksessa voi kuitenkin rekisteröityä, kirjautua sisään ja ulos, lisätä tarinoita ja nähdä muiden lisäämiä tarinoita etusivulla sekä siirtyä tarinan otsikkoa painamalla tarinan sivulle.
+
+Sovelluksen Heroku-URL on https://tsoha-stories.herokuapp.com/ ja kaikki edelllä mainitut pitäisi toimia ja olla helposti löydettävissä.
+
 ## Building
 
 ```bash
