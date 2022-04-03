@@ -11,3 +11,13 @@ Sovelluksen ominaisuuksia:
 * Käyttäjä voi tykätä muiden julkaisemia tarinan alkuja tai jatko-osia. Käyttäjä voi antaa maksimissaan yhden tykkäyksen julkaisua kohden.
 * Käyttäjä voi järjestää etusivulla näkemänsä tarinat tykkäysten, julkaisuajan tai julkaisijan perusteella.
 * Ylläpitäjä voi poistaa julkaisuja.
+
+## Building
+
+```bash
+git clone https://github.com/kbjakex/tsoha-stories/
+cd tsoha-stories
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
