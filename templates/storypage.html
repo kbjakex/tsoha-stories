@@ -1,0 +1,8 @@
+{% block content %}
+<a href="/">Go back</a>
+
+<h1>{{ post.title }}</h1>
+{{ post.content }}
+<br><br><br>
+Created by: {{ post.username }} at {{ post.sent_at.strftime("%Y-%m-%d %H:%M:%S") }}<br>
+{% endblock %}

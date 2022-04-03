@@ -60,3 +60,10 @@ def addstory():
     db.session.execute("INSERT INTO posts (title, content, user_id, parent_id, sent_at) VALUES (:title, :content, :user_id, NULL, NOW())", {"title":title, "content":contents, "user_id":user_id})
     db.session.commit()
     return redirect("/")
+
+@app.route("/posts/<int:id>")
+def page(id):
+    sql = "SELECT U.username, P.id, P.title, P.content, P.sent_at FROM posts P, users U WHERE P.user_id = U.id AND P.id = :id"
+    result = db.session.execute(sql, {"id":id})
+    post = result.fetchone()
+    return render_template("storypage.html", post = post) 
