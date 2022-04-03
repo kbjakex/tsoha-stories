@@ -1,1 +1,48 @@
-Tervetuloa!
+{% block content %}
+{% if session.username %}
+<p>Logged in as {{ session.username }}</p>
+<a href="/logout">Log out</a>
+{% else %}
+{% if login_error == 'credentials' %}
+<p>Wrong username or password!</p>
+{% elif login_error == 'username' %}
+<p>Username taken!</p>
+{% endif %}
+<form action="/login" method="POST">
+    <p>Username:<br>
+        <input type="text" name="username">
+    </p>
+    <p>Password:<br>
+        <input type="password" name="password">
+    </p>
+    <input type="submit" name="login" value="Log in"><br>
+    <input type="submit" name="register" value="Create account"><br>
+</form>
+{% endif %}
+<hr>
+
+<h1>Storytree</h1>
+<p>Posts:</p>
+
+{% for post in posts %}
+<div>
+    <a href="/posts/{{post.id}}">{{ post.title }}</a><br>
+    Contents: {{ post.content }}<br>
+    Created by: {{ post.username }}<br>
+    Created at: {{ post.sent_at.strftime("%Y-%m-%d %H:%M:%S") }}<br>
+</div>
+<hr>
+{% endfor %}
+<hr>
+{% if session.username %}
+<h3>Add new story</h3>
+<form action="/addstory", method="POST">
+    Title:<br>
+    <input type="text" name="title"><br>
+    Contents:<br>
+    <textarea name="contents" rows="3" cols="50"></textarea><br>
+
+    <input type="submit", value="Send">
+</form>
+{% endif %}
+{% endblock %}
