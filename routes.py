@@ -33,6 +33,7 @@ class Post:
         self.sent_at = sent_at
         self.tags = tags
         self.num_likes = 0
+        self.liked = False
         self.num_comments = 0
 
 @login_manager.user_loader
@@ -71,6 +72,14 @@ def index():
             if post.id == stats[0]:
                 post.num_likes = stats[1]
                 post.num_comments = stats[2]
+
+    sql = "SELECT P.id FROM posts P, likes L WHERE L.user_id = :user_id AND L.post_id = P.id"
+    liked_posts = db.session.execute(sql, {"user_id": current_user.id}).fetchall()
+
+    for post in posts:
+        for liked_post in liked_posts:
+            if post.id == liked_post[0]:
+                post.liked = True
 
     if not sort is None:
         if current_user.sort_mode == "newest":
@@ -176,3 +185,20 @@ def page(id):
     result = db.session.execute(sql, {"id":id})
     post = result.fetchone()
     return render_template("storypage.html", post = post) 
+
+@app.route("/api/posts/<int:id>/like")
+def like(id):
+    if current_user.is_authenticated:
+        sql = "SELECT * FROM likes WHERE user_id = :user_id AND post_id = :post_id"
+        result = db.session.execute(sql, {"user_id":current_user.id, "post_id":id})
+        liked = "false"
+        if result.fetchone() is None:
+            liked = "true"
+            db.session.execute("INSERT INTO likes (user_id, post_id, liked_at) VALUES (:user_id, :post_id, NOW())", {"user_id": current_user.id, "post_id":id})
+            db.session.commit()
+        else:
+            db.session.execute("DELETE FROM likes WHERE user_id = :user_id AND post_id = :post_id", {"user_id": current_user.id, "post_id":id})
+            db.session.commit()
+        return f"{{ \"liked\": {liked}, \"num_likes\": " + str(db.session.execute("SELECT COUNT(*) FROM likes WHERE post_id = :post_id", {"post_id":id}).fetchone()[0]) + " }"
+    else:
+        return "Unauthorized", 401

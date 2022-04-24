@@ -34,12 +34,35 @@
                     <span class="badge rounded-pill bg-secondary">#{{ tag }}</span>
                     {% endfor %}
                 </span>
-                <span class="pe-3">{{ post.num_likes }} <i class="bi bi-heart"></i></span>
+                <span role="button" tabindex="0">
+                    <a id="btn-like-{{ post.id }}" class="pe-3 text-decoration-none text-dark">
+                        {{ post.num_likes }} 
+                        <i class="bi bi-heart{%if post.liked %}-fill{% endif %}"></i>
+                    </a>
+                </span>
                 <span class="">{{ post.num_comments }} <i class="bi bi-chat"></i></span>
             </div>
         </div>
     </div>
     <br>
+    <script>
+        $(document).ready(function () {
+            $('#btn-like-{{ post.id }}').click(function () {
+                const update = { post_id: {{ post.id }} };
+                const options = { method: 'POST', headers: { 'Content-Type': 'application/json', }, body: JSON.stringify(update), };
+                fetch('/api/posts/{{ post.id }}/like')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.liked) {
+                            $('#btn-like-{{ post.id }}').html(`${data.num_likes} <i class="bi bi-heart-fill"></i>`);
+                        } else {
+                            $('#btn-like-{{ post.id }}').html(`${data.num_likes} <i class="bi bi-heart"></i>`);
+                        }
+                    });
+            });
+        });
+    </script>
     {% endfor %}
 </div>
+
 {% endblock %}
