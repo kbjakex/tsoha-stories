@@ -2,12 +2,31 @@
 
 {% block content_body %}
 <div class="container">
-    <a href="/">Go back</a>
-
-    <h1>{{ post.title }}</h1>
+    <div class="pt-5 pb-2">
+        <small class="text-secondary py-5">Post by {{ post.username }} &sdot; {{ post.sent_at.strftime("%Y-%m-%d %H:%M") }}</small>
+    </div>
+    <div class="d-flex align-items-center">
+        <h1>{{ post.title }}</h1>
+        <!-- <i class="px-3 bi bi-heart"></i>-->        
+        <span role="button" tabindex="0">
+            {% if current_user.is_authenticated %}
+            <a id="btn-like" class="px-3 text-decoration-none text-dark">
+            {% else %}
+            <a id="btn-like" class="px-3 text-decoration-none text-dark" href="/login">
+            {% endif %}
+                <i class="bi bi-heart{%if post.liked %}-fill{% endif %}"></i>
+            </a>
+        </span>
+    </div>
     {{ post.content }}
+    <div class="d-flex pt-3">
+        <span class="me-auto">
+            {% for tag in post.tags %}
+            <span class="badge rounded-pill bg-secondary">#{{ tag }}</span>
+            {% endfor %}
+        </span>
+    </div>
     <br><br><br>
-    Created by: {{ post.username }} at {{ post.sent_at.strftime("%Y-%m-%d %H:%M:%S") }}<br>
 
     {% if session.username %}
     <h3>Continue the story</h3>
@@ -21,4 +40,24 @@
     </form>
     {% endif %}
 </div>
+
+{% if current_user.is_authenticated %}
+<script>
+    $(document).ready(function () {
+        $('#btn-like').click(function () {
+            const update = { post_id: {{ post.id }} };
+            const options = { method: 'POST', headers: { 'Content-Type': 'application/json', }, body: JSON.stringify(update), };
+            fetch('/api/posts/{{ post.id }}/like')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.liked) {
+                        $('#btn-like').html(`<i class="bi bi-heart-fill"></i>`);
+                    } else {
+                        $('#btn-like').html(`<i class="bi bi-heart"></i>`);
+                    }
+                });
+        });
+    });
+</script>
+{% endif %}
 {% endblock %}

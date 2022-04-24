@@ -73,13 +73,13 @@ def index():
                 post.num_likes = stats[1]
                 post.num_comments = stats[2]
 
-    sql = "SELECT P.id FROM posts P, likes L WHERE L.user_id = :user_id AND L.post_id = P.id"
-    liked_posts = db.session.execute(sql, {"user_id": current_user.id}).fetchall()
-
-    for post in posts:
-        for liked_post in liked_posts:
-            if post.id == liked_post[0]:
-                post.liked = True
+    if current_user.is_authenticated:
+        sql = "SELECT P.id FROM posts P, likes L WHERE L.user_id = :user_id AND L.post_id = P.id"
+        liked_posts = db.session.execute(sql, {"user_id": current_user.id}).fetchall()
+        for post in posts:
+            for liked_post in liked_posts:
+                if post.id == liked_post[0]:
+                    post.liked = True
 
     if not sort is None:
         if current_user.sort_mode == "newest":
@@ -181,9 +181,35 @@ def addstory():
 
 @app.route("/posts/<int:id>")
 def page(id):
-    sql = "SELECT U.username, P.id, P.title, P.content, P.sent_at FROM posts P, users U WHERE P.user_id = U.id AND P.id = :id"
+    sql = "SELECT P.id, P.title, P.content, P.sent_at, U.username, T.name FROM users U, posts P LEFT JOIN tags T ON P.id = T.post_id WHERE U.id = P.user_id AND P.id = :post_id"
+    post_raw_all = db.session.execute(sql, {"post_id": id}).fetchall()
+
+    if post_raw_all is None:
+        abort(404)
+    
+    post_raw = post_raw_all[0]
+    post = Post(post_raw[0], post_raw[1], post_raw[2], post_raw[3], post_raw[4], [])
+    for tuple in post_raw_all:
+        if tuple[5] is not None:
+            post.tags.append(tuple[5])
+
+    # Check if user has liked the post
+    if current_user.is_authenticated:
+        sql = "SELECT COUNT(*) FROM users U, likes L WHERE U.id = L.user_id AND L.post_id = :post_id"
+        num_likes = db.session.execute(sql, {"post_id": id}).fetchone()[0]
+        if not num_likes is None and num_likes > 0:
+            post.liked = True
+
+
+    """     sql = "SELECT U.username, C.content, C.sent_at FROM users U, comments C WHERE C.post_id = :post_id AND U.id = C.user_id"
+        comments = db.session.execute(sql, {"post_id":id}).fetchall()
+
+        sql = "SELECT U.username, L.sent_at FROM users U, likes L WHERE L.post_id = :post_id AND U.id = L.user_id" """
+
+
+    """ sql = "SELECT U.username, P.id, P.title, P.content, P.sent_at FROM posts P, users U WHERE P.user_id = U.id AND P.id = :id"
     result = db.session.execute(sql, {"id":id})
-    post = result.fetchone()
+    post = result.fetchone() """
     return render_template("storypage.html", post = post) 
 
 @app.route("/api/posts/<int:id>/like")
