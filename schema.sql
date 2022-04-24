@@ -24,8 +24,8 @@ CREATE TABLE comments (
     id SERIAL PRIMARY KEY,
     post_id INTEGER REFERENCES posts,
     user_id INTEGER REFERENCES users,
-    content TEXT NOT NULL,
-    UNIQUE(post_id, user_id)
+    sent_at TIMESTAMP NOT NULL,
+    content TEXT NOT NULL
 );
 
 CREATE TABLE likes (

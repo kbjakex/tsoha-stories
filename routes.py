@@ -1,9 +1,11 @@
+from crypt import methods
 from app import app
 from db import db
-from flask import redirect, render_template, request, url_for
+from flask import redirect, render_template, request, abort
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 import json
+from datetime import datetime, timedelta
 
 from urllib.parse import urlparse, urljoin
 
@@ -35,6 +37,7 @@ class Post:
         self.num_likes = 0
         self.liked = False
         self.num_comments = 0
+        self.comments = []
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -48,6 +51,8 @@ def load_user(user_id):
 @app.route("/")
 def index():
     sort = request.args.get("sort")
+    if sort is None:
+        sort = "newest"
     if not current_user is None:
         current_user.sort_mode = sort
 
@@ -169,29 +174,44 @@ def addstory():
         db.session.commit()
 
         # tagify outputs the tags in json format.
-        json_tags = json.loads(request.form["tags"])
-        for json_tag in json_tags:
-            tagname = json_tag['value'] 
-            db.session.execute("INSERT INTO tags (name, post_id) VALUES (:name, :post_id)", {"post_id":rowid, "name":tagname})
-            db.session.commit()
+        tags = request.form["tags"]
+        if not tags is None and len(tags) > 0:
+            print("Tags: ",tags)
+            json_tags = json.loads(tags)
+            for json_tag in json_tags:
+                tagname = json_tag['value'] 
+                db.session.execute("INSERT INTO tags (name, post_id) VALUES (:name, :post_id)", {"post_id":rowid, "name":tagname})
+                db.session.commit()
 
         return redirect(f"/posts/{rowid}")
 
     return render_template("newstory.html")
 
-@app.route("/posts/<int:id>")
+@app.route("/posts/<int:id>", methods=["GET", "POST"])
 def page(id):
-    sql = "SELECT P.id, P.title, P.content, P.sent_at, U.username, T.name FROM users U, posts P LEFT JOIN tags T ON P.id = T.post_id WHERE U.id = P.user_id AND P.id = :post_id"
+    if request.method == "POST":
+        if not current_user.is_authenticated:
+            abort(401)
+
+        comment = request.form.get("content")
+        if not comment is None and len(comment) > 0:
+            user_id = current_user.id
+
+            sql = "INSERT INTO comments (post_id, user_id, sent_at, content) VALUES (:post_id, :user_id, NOW(), :content)"
+            db.session.execute(sql, {"post_id":id, "user_id":user_id, "content":comment})
+            db.session.commit()
+
+    sql = "SELECT P.id, P.title, P.content, P.sent_at, U.username, U.id, T.name FROM users U, posts P LEFT JOIN tags T ON P.id = T.post_id WHERE U.id = P.user_id AND P.id = :post_id"
     post_raw_all = db.session.execute(sql, {"post_id": id}).fetchall()
 
-    if post_raw_all is None:
+    if post_raw_all is None or len(post_raw_all) == 0:
         abort(404)
     
     post_raw = post_raw_all[0]
     post = Post(post_raw[0], post_raw[1], post_raw[2], post_raw[3], post_raw[4], [])
     for tuple in post_raw_all:
-        if tuple[5] is not None:
-            post.tags.append(tuple[5])
+        if tuple[6] is not None:
+            post.tags.append(tuple[6])
 
     # Check if user has liked the post
     if current_user.is_authenticated:
@@ -200,11 +220,18 @@ def page(id):
         if not num_likes is None and num_likes > 0:
             post.liked = True
 
+        post.can_delete = current_user.id == post_raw[5]
+        post.can_edit = post.can_delete and not post.sent_at < datetime.now() - timedelta(minutes=30)
 
-    """     sql = "SELECT U.username, C.content, C.sent_at FROM users U, comments C WHERE C.post_id = :post_id AND U.id = C.user_id"
-        comments = db.session.execute(sql, {"post_id":id}).fetchall()
+    sql = "SELECT P.id, U.username FROM users U, posts P WHERE U.id = P.user_id AND P.parent_id = :post_id"
+    continuations = db.session.execute(sql, {"post_id": id}).fetchall()
 
-        sql = "SELECT U.username, L.sent_at FROM users U, likes L WHERE L.post_id = :post_id AND U.id = L.user_id" """
+    post.continuations = continuations
+
+    sql = "SELECT U.username, C.content, C.sent_at FROM users U, comments C WHERE C.post_id = :post_id AND U.id = C.user_id"
+    post.comments = db.session.execute(sql, {"post_id":id}).fetchall()
+
+    """ sql = "SELECT U.username, L.sent_at FROM users U, likes L WHERE L.post_id = :post_id AND U.id = L.user_id" """
 
 
     """ sql = "SELECT U.username, P.id, P.title, P.content, P.sent_at FROM posts P, users U WHERE P.user_id = U.id AND P.id = :id"
@@ -228,3 +255,17 @@ def like(id):
         return f"{{ \"liked\": {liked}, \"num_likes\": " + str(db.session.execute("SELECT COUNT(*) FROM likes WHERE post_id = :post_id", {"post_id":id}).fetchone()[0]) + " }"
     else:
         return "Unauthorized", 401
+
+
+@app.route("/api/posts/<int:id>/delete", methods=["GET", "POST"])
+def delete(id):
+    if current_user.is_authenticated:
+        sql = "SELECT * FROM posts WHERE id = :id AND user_id = :user_id"
+        result = db.session.execute(sql, {"id":id, "user_id":current_user.id})
+        if result.fetchone() is None:
+            abort(401)
+        db.session.execute("DELETE FROM posts WHERE id = :id", {"id":id})
+        db.session.commit()
+        return redirect("/")
+    else:
+        abort(401)
