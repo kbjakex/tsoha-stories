@@ -2,8 +2,21 @@
 
 {% block content_body %}
 <div class="container h-100 d-flex flex-column align-items-center">
-    {% for post in posts %}
+    <div>
+        <div class="pb-3" role="group">
+            <a name="b_sort_newest"
+                class="text-decoration-none text-dark border-dark border-0 {% if current_user.sort_mode == 'newest' %} border-bottom {% endif %} border-3 px-3 py-2"
+                href="/?sort=newest">Newest</a>
+            <a name="b_sort_newest"
+                class="text-decoration-none text-dark border-dark border-0 {% if current_user.sort_mode == 'oldest' %} border-bottom {% endif %} border-3 px-3 py-2"
+                href="/?sort=oldest">Oldest</a>
+            <a name="b_sort_newest"
+                class="text-decoration-none text-dark border-dark border-0 {% if current_user.sort_mode == 'most_liked' %} border-bottom {% endif %} border-3 px-3 py-2"
+                href="/?sort=most_liked">Most liked</a>
+        </div>
+    </div>
 
+    {% for post in posts %}
     <div class="card border-0 bg-light rounded shadow" style="min-width: 800px">
         <div class="card-body text-decoration-none">
             <div class="card-text d-flex justify-content-between text-secondary pb-1">

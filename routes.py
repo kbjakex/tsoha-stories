@@ -22,6 +22,7 @@ class User(UserMixin):
         self.id = id
         self.username = username
         self.password = password
+        self.sort_mode = "newest"
 
 class Post:
     def __init__(self, id, title, content, sent_at, author, tags):
@@ -45,12 +46,15 @@ def load_user(user_id):
 
 @app.route("/")
 def index():
+    sort = request.args.get("sort")
+    if not current_user is None:
+        current_user.sort_mode = sort
+
     sql = "SELECT P.id, P.title, P.content, P.sent_at, U.username, T.name FROM users U, posts P LEFT JOIN tags T ON P.id = T.post_id WHERE U.id = P.user_id"
     result = db.session.execute(sql)
     posts_raw = result.fetchall()
 
     posts = []
-
     last_post_id = None
     for post in posts_raw:
         if last_post_id != post[0]:
@@ -61,13 +65,20 @@ def index():
 
     sql = "SELECT P.id, COUNT(L), COUNT(C) FROM likes L, posts P LEFT JOIN comments C ON  P.id = C.post_id WHERE L.post_id = P.id GROUP BY P.id"
     likes_and_comments = db.session.execute(sql).fetchall()
-    print(likes_and_comments)
 
     for stats in likes_and_comments:
         for post in posts:
             if post.id == stats[0]:
                 post.num_likes = stats[1]
                 post.num_comments = stats[2]
+
+    if not sort is None:
+        if current_user.sort_mode == "newest":
+            posts.sort(key=lambda x: x.sent_at, reverse=True)
+        elif current_user.sort_mode == "oldest":
+            posts.sort(key=lambda x: x.sent_at, reverse=False)
+        elif current_user.sort_mode == "most_liked":
+            posts.sort(key=lambda x: x.num_likes, reverse=True) 
     
     return render_template("index.html", posts = posts)
 
@@ -137,8 +148,6 @@ def addstory():
         username = current_user.username
         title = request.form["title"]
         contents = request.form["content"]
-
-        print(f"username: {username}")
 
         result = db.session.execute("SELECT id FROM users WHERE username=:username", {"username":username}).fetchone()
         if not result:
