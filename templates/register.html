@@ -1,0 +1,26 @@
+{% extends 'layout.html' %}
+
+{% block content_body %}
+<div class="container h-100 d-flex flex-column align-items-center">
+    <form style="min-width: 400px; padding-top: 100px" method="POST">
+        {% if last_form_error is not none %}
+        <div class="alert alert-danger" role="alert">
+            {{ last_form_error }}
+        </div>
+        {% endif %}
+        <div class="mb-3">
+            <label for="username-field" class="form-label">Username</label>
+            <input type="text" name="username" class="form-control" id="username-field" required>
+        </div>
+        <div class="mb-3">
+            <label for="password-field-1" class="form-label">Password</label>
+            <input type="password" name="password1" class="form-control" id="password-field-1" required>
+        </div>
+        <div class="mb-3">
+            <label for="password-field-2" class="form-label">Repeat password</label>
+            <input type="password" name="password2" class="form-control" id="password-field-2" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Sign up</button>
+    </form>
+</div>
+{% endblock %}

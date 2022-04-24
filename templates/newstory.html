@@ -1,0 +1,30 @@
+{% extends 'layout.html' %}
+
+{% block content_body %}
+<div class="container h-100 d-flex flex-column p-5">
+    <h1 text-left class="ps-5">Start a new story</h1>
+    <div class="align-items-center p-5">
+        <form style="min-width: 800px" method="POST">
+            <div class="row mb-3">
+                <input type="text" name="title" class="form-control border-0 bg-light" id="storyName"
+                    placeholder="Title...">
+            </div>
+            <div class="row mb-3">
+                <textarea rows="6" maxlength="250" name="content" class="form-control border-0 bg-light"
+                    id="storyContent" placeholder="Once upon a time"></textarea>
+            </div>
+            <div class="row mb-3">
+                <input name='tags' class="form-control border-0 bg-light" placeholder="Add tag...">
+            </div>
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </form>
+    </div>
+</div>
+<script src="https://unpkg.com/@yaireo/tagify"></script>
+<script src="https://unpkg.com/@yaireo/tagify@3.1.0/dist/tagify.polyfills.min.js"></script>
+<link href="https://unpkg.com/@yaireo/tagify/dist/tagify.css" rel="stylesheet" type="text/css" />
+<script>
+    var input = document.querySelector('input[name=tags]');
+    new Tagify(input)
+</script>
+{% endblock %}

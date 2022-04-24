@@ -1,8 +1,24 @@
-{% block content %}
-<a href="/">Go back</a>
+{% extends 'layout.html' %}
 
-<h1>{{ post.title }}</h1>
-{{ post.content }}
-<br><br><br>
-Created by: {{ post.username }} at {{ post.sent_at.strftime("%Y-%m-%d %H:%M:%S") }}<br>
+{% block content_body %}
+<div class="container">
+    <a href="/">Go back</a>
+
+    <h1>{{ post.title }}</h1>
+    {{ post.content }}
+    <br><br><br>
+    Created by: {{ post.username }} at {{ post.sent_at.strftime("%Y-%m-%d %H:%M:%S") }}<br>
+
+    {% if session.username %}
+    <h3>Continue the story</h3>
+    <form action="/addstory" , method="POST">
+        Title:<br>
+        <input type="text" name="title"><br>
+        Contents (max. 256 characters):<br>
+        <textarea name="contents" rows="3" cols="50" maxlength="250"></textarea><br>
+
+        <input type="submit" , value="Send">
+    </form>
+    {% endif %}
+</div>
 {% endblock %}

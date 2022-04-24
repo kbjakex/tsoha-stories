@@ -13,10 +13,19 @@ CREATE TABLE posts (
     sent_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE tags (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    post_id INTEGER REFERENCES posts,
+    UNIQUE(name, post_id)
+);
+
 CREATE TABLE comments (
     id SERIAL PRIMARY KEY,
     post_id INTEGER REFERENCES posts,
-    user_id INTEGER REFERENCES users
+    user_id INTEGER REFERENCES users,
+    content TEXT NOT NULL,
+    UNIQUE(post_id, user_id)
 );
 
 CREATE TABLE likes (
