@@ -14,6 +14,6 @@ Sovelluksen ominaisuuksia:
 
 ## Sovelluksen tila
 
-Kurssi on päättynyt ja sovellus on valmis.
+Kurssi on päättynyt ja sovellusta ei enää kehitetä.
 
-Sovelluksen Heroku-URL on https://tsoha-stories.herokuapp.com/ ja kaikki edelllä mainitut pitäisi toimia ja olla helposti löydettävissä.
+Sovelluksen Heroku-URL on https://tsoha-stories.herokuapp.com/.
