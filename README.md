@@ -14,6 +14,6 @@ Sovelluksen ominaisuuksia:
 
 ## Sovelluksen tila
 
-Sovelluksesta puuttuu edelleen valitettavasti hyvin oleellisia ominaisuuksia, kuten toisen tarinan jatkaminen. Myös postausten tykkääminen, tarinoiden järjesteleminen ja ylläpitäjäoikeudet puuttuvat. Sovelluksessa voi kuitenkin rekisteröityä, kirjautua sisään ja ulos, lisätä tarinoita ja nähdä muiden lisäämiä tarinoita etusivulla sekä siirtyä tarinan otsikkoa painamalla tarinan sivulle.
+Kurssi on päättynyt ja sovellus on valmis.
 
 Sovelluksen Heroku-URL on https://tsoha-stories.herokuapp.com/ ja kaikki edelllä mainitut pitäisi toimia ja olla helposti löydettävissä.
