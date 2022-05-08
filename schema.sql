@@ -9,7 +9,8 @@ CREATE TABLE posts (
     title TEXT,
     content TEXT NOT NULL,
     user_id INTEGER REFERENCES users,
-    parent_id INTEGER REFERENCES posts,
+    parent_id INTEGER REFERENCES posts ON DELETE CASCADE,
+    ancestors INTEGER NOT NULL,
     sent_at TIMESTAMP NOT NULL
 );
 

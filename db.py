@@ -1,6 +1,6 @@
 from app import app
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_login import UserMixin
 from datetime import datetime, timedelta
 from os import getenv
 
@@ -22,7 +22,7 @@ class User(UserMixin):
         self.sort_mode = "newest"
 
 class Post:
-    def __init__(self, id, title, content, sent_at, author, tags):
+    def __init__(self, id, title, content, sent_at, author, tags, parent_id, ancestors):
         self.id = id
         self.title = title
         self.content = content
@@ -33,6 +33,8 @@ class Post:
         self.liked = False
         self.num_comments = 0
         self.comments = []
+        self.parent_id = parent_id
+        self.ancestors = ancestors
 
 def get_user_by_id(user_id):
     sql = "SELECT * FROM users WHERE id = :id"
@@ -59,7 +61,7 @@ def create_user(username, password):
 
 
 def get_all_posts(user_id = None):
-    sql = "SELECT P.id, P.title, P.content, P.sent_at, U.username, T.name FROM users U, posts P LEFT JOIN tags T ON P.id = T.post_id WHERE U.id = P.user_id"
+    sql = "SELECT P.id, P.title, P.content, P.sent_at, U.username, T.name FROM users U, posts P LEFT JOIN tags T ON P.id = T.post_id WHERE U.id = P.user_id AND P.parent_id IS NULL"
     result = db.session.execute(sql)
     posts_raw = result.fetchall()
 
@@ -67,7 +69,7 @@ def get_all_posts(user_id = None):
     last_post_id = None
     for post in posts_raw:
         if last_post_id != post[0]:
-            posts.append(Post(post[0], post[1], post[2], post[3], post[4], []))
+            posts.append(Post(post[0], post[1], post[2], post[3], post[4], [], None, 0))
             last_post_id = post[0]
         if post[5] is not None:
             posts[-1].tags.append(post[5])
@@ -91,30 +93,28 @@ def get_all_posts(user_id = None):
     return posts
 
 def get_post_by_id(post_id: int, current_user_id: int = None) -> Post:
-    sql = "SELECT P.id, P.title, P.content, P.sent_at, U.username, U.id, T.name FROM users U, posts P LEFT JOIN tags T ON P.id = T.post_id WHERE U.id = P.user_id AND P.id = :post_id"
+    sql = "SELECT P.id, P.title, P.content, P.sent_at, U.username, U.id, T.name, P.parent_id, P.ancestors FROM users U, posts P LEFT JOIN tags T ON P.id = T.post_id WHERE U.id = P.user_id AND P.id = :post_id"
     post_raw_all = db.session.execute(sql, {"post_id": post_id}).fetchall()
 
     if post_raw_all is None or len(post_raw_all) == 0:
         return None
     
     post_raw = post_raw_all[0]
-    post = Post(post_raw[0], post_raw[1], post_raw[2], post_raw[3], post_raw[4], [])
+    post = Post(post_raw[0], post_raw[1], post_raw[2], post_raw[3], post_raw[4], [], post_raw[7], post_raw[8])
     for tuple in post_raw_all:
         if tuple[6] is not None:
             post.tags.append(tuple[6])
 
-    # Check if user has liked the post
-    if not current_user_id is None:
-        sql = "SELECT COUNT(*), SUM(CASE WHEN U.id = :user_id THEN 1 ELSE 0 END) FROM users U, likes L WHERE U.id = L.user_id AND L.post_id = :post_id"
-        likes = db.session.execute(sql, {"post_id": post_id, "user_id": current_user_id}).fetchone()
-        if not likes[1] is None and likes[1] > 0:
-            post.liked = True
+    sql = "SELECT COUNT(*), SUM(CASE WHEN U.id = :user_id THEN 1 ELSE 0 END) FROM users U, likes L WHERE U.id = L.user_id AND L.post_id = :post_id"
+    likes = db.session.execute(sql, {"post_id": post_id, "user_id": current_user_id}).fetchone()
+    if not current_user_id is None and not likes[1] is None and likes[1] > 0:
+        post.liked = True
 
-        post.num_likes = likes[0]
-        post.can_delete = current_user_id == post_raw[5]
-        post.can_edit = post.can_delete and not post.sent_at < datetime.now() - timedelta(minutes=30)
+    post.num_likes = likes[0]
+    post.can_delete = current_user_id == post_raw[5]
+    post.can_edit = post.can_delete and not post.sent_at < datetime.now() - timedelta(minutes=30)
 
-    sql = "SELECT P.id, U.username FROM users U, posts P WHERE U.id = P.user_id AND P.parent_id = :post_id"
+    sql = "SELECT P.id, P.content, U.username, P.sent_at FROM users U, posts P WHERE U.id = P.user_id AND P.parent_id = :post_id"
     post.continuations = db.session.execute(sql, {"post_id": post_id}).fetchall()
 
     sql = "SELECT U.username, C.content, C.sent_at, COUNT(L.id) FROM users U, comments C LEFT JOIN Likes L ON L.comment_id = C.id WHERE C.post_id = :post_id AND U.id = C.user_id GROUP BY C.id, U.id ORDER BY C.sent_at DESC"
@@ -122,18 +122,25 @@ def get_post_by_id(post_id: int, current_user_id: int = None) -> Post:
 
     return post
 
-def create_post(title: str, content: str, author_id: int, tags: list = None) -> int:
-    rowid = db.session.execute(
-        "INSERT INTO posts (title, content, user_id, parent_id, sent_at) VALUES (:title, :content, :user_id, NULL, NOW()) RETURNING posts.id", 
-        { "title": title, "content": content, "user_id": author_id }
-    ).fetchone()[0]
+def get_post_title_and_content(post_id: int):
+    sql = "SELECT title, content FROM posts WHERE id = :post_id"
+    return db.session.execute(sql, {"post_id": post_id}).fetchone()
 
-    db.session.commit()
+def create_post(title: str, content: str, author_id: int, tags: list = None, parent_post_id: int = None) -> int:
+    ancestors = 0
+    if not parent_post_id is None:
+        sql = "SELECT ancestors FROM posts WHERE id = :post_id"
+        ancestors = db.session.execute(sql, {"post_id": parent_post_id}).fetchone()[0]
+        ancestors += 1
+
+    sql = "INSERT INTO posts (title, content, user_id, parent_id, ancestors, sent_at) VALUES (:title, :content, :user_id, :parent_id, :ancestors, NOW()) RETURNING posts.id"
+    rowid = db.session.execute(sql, { "title": title, "content": content, "user_id": author_id, "parent_id": parent_post_id, "ancestors": ancestors }).fetchone()[0]
     
     if not tags is None and len(tags) > 0:
         for tag in tags:
             db.session.execute("INSERT INTO tags (name, post_id) VALUES (:name, :post_id)", {"post_id":rowid, "name":tag})
-            db.session.commit()
+
+    db.session.commit()
 
     return rowid
 

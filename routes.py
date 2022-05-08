@@ -1,9 +1,7 @@
-from crypt import methods
 from app import app
-from db import User, Post
 import db
 from flask import redirect, render_template, request, abort, session
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 import secrets
 import json
@@ -89,6 +87,9 @@ def register():
         if password1 != password2:
             return render_template("register.html", last_form_error = "Passwords do not match")
 
+        if len(password1) < 3:
+            return render_template("register.html", last_form_error = "Password must be at least 3 characters")
+
         user = db.get_user_by_username(username)
 
         if not user is None:
@@ -131,6 +132,25 @@ def addstory():
 
     return redirect(f"/posts/{post_id}")
 
+@app.route("/extend/<int:id>", methods=["GET", "POST"])
+@login_required
+def extend(id):
+    parent = db.get_post_title_and_content(id)
+    if parent is None:
+        return abort(404)
+
+    if request.method != "POST":
+        return render_template("extend.html", parent_title=parent.title, parent_content=parent.content)
+
+    if session["csrf_token"] != request.form["csrf_token"]:
+        return abort(403)
+
+    contents = request.form["content"]
+
+    post_id = db.create_post(parent.title, contents, current_user.id, None, id)
+
+    return redirect(f"/continuations/{post_id}")
+
 @app.route("/posts/<int:id>", methods=["GET", "POST"])
 def page(id):
     if request.method == "POST":
@@ -153,6 +173,29 @@ def page(id):
         return abort(404)
 
     return render_template("storypage.html", post = post) 
+
+@app.route("/continuations/<int:id>", methods=["GET", "POST"])
+def continuation(id):
+    if request.method == "POST":
+        if not current_user.is_authenticated:
+            abort(401)
+        if session["csrf_token"] != request.form["csrf_token"]:
+            return abort(403)
+
+        comment = request.form.get("content")
+        if not comment is None and len(comment) > 0:
+            db.create_comment(id, comment, current_user.id)
+            return redirect('#')
+
+    user_id = None
+    if current_user.is_authenticated:
+        user_id = current_user.id
+
+    post = db.get_post_by_id(id, user_id)
+    if post is None:
+        return abort(404)
+
+    return render_template("continuation.html", post = post) 
 
 @app.route("/api/posts/<int:id>/like", methods=["POST"])
 @login_required
