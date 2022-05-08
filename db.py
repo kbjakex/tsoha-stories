@@ -36,6 +36,15 @@ class Post:
         self.parent_id = parent_id
         self.ancestors = ancestors
 
+class Comment:
+    def __init__(self, id, content, author, sent_at, post_id, likes):
+        self.id = id
+        self.content = content
+        self.author = author
+        self.sent_at = sent_at
+        self.post_id = post_id
+        self.likes = likes
+
 def get_user_by_id(user_id):
     sql = "SELECT * FROM users WHERE id = :id"
     user = db.session.execute(sql, {"id": user_id}).fetchone()
@@ -105,6 +114,7 @@ def get_post_by_id(post_id: int, current_user_id: int = None) -> Post:
         if tuple[6] is not None:
             post.tags.append(tuple[6])
 
+    # Likes on post
     sql = "SELECT COUNT(*), SUM(CASE WHEN U.id = :user_id THEN 1 ELSE 0 END) FROM users U, likes L WHERE U.id = L.user_id AND L.post_id = :post_id"
     likes = db.session.execute(sql, {"post_id": post_id, "user_id": current_user_id}).fetchone()
     if not current_user_id is None and not likes[1] is None and likes[1] > 0:
@@ -117,7 +127,8 @@ def get_post_by_id(post_id: int, current_user_id: int = None) -> Post:
     sql = "SELECT P.id, P.content, U.username, P.sent_at FROM users U, posts P WHERE U.id = P.user_id AND P.parent_id = :post_id"
     post.continuations = db.session.execute(sql, {"post_id": post_id}).fetchall()
 
-    sql = "SELECT U.username, C.content, C.sent_at, COUNT(L.id) FROM users U, comments C LEFT JOIN Likes L ON L.comment_id = C.id WHERE C.post_id = :post_id AND U.id = C.user_id GROUP BY C.id, U.id ORDER BY C.sent_at DESC"
+    # Comments
+    sql = "SELECT C.id, U.username, C.content, C.sent_at FROM users U, comments C WHERE C.post_id = :post_id AND U.id = C.user_id GROUP BY C.id, U.id ORDER BY C.sent_at DESC"
     post.comments = db.session.execute(sql, {"post_id":post_id}).fetchall()
 
     return post
@@ -143,22 +154,6 @@ def create_post(title: str, content: str, author_id: int, tags: list = None, par
     db.session.commit()
 
     return rowid
-
-def edit_post(post_id: int, title: str, content: str, tags: list = None) -> bool:
-    sql = "UPDATE posts SET title = :title, content = :content WHERE id = :post_id"
-    db.session.execute(sql, {"title": title, "content": content, "post_id": post_id})
-    db.session.commit()
-
-    if not tags is None and len(tags) > 0:
-        sql = "DELETE FROM tags WHERE post_id = :post_id"
-        db.session.execute(sql, {"post_id": post_id})
-        db.session.commit()
-
-        for tag in tags:
-            db.session.execute("INSERT INTO tags (name, post_id) VALUES (:name, :post_id)", {"post_id":post_id, "name":tag})
-            db.session.commit()
-
-    return True
 
 def delete_post(post_id: int, user_id: int):
     sql = "DELETE FROM posts WHERE id = :post_id AND user_id = :user_id"

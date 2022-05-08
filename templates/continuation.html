@@ -19,13 +19,6 @@
         </span>
         {% if current_user.is_authenticated %}
 
-        {% if post.can_edit %}
-        <span class="px-3">
-            <a class="text-decoration-none text-dark" href="/posts/{{ post.id }}/edit">
-                <i class="bi bi-pencil text-dark"></i>
-            </a>
-        </span>
-        {% endif %}
         {% if post.can_delete %}
         <span class="px-3">
             <a class="text-decoration-none text-danger" href="/api/posts/{{ post.id }}/delete">
@@ -74,7 +67,6 @@
             {% for comment in post.comments %}
             <div class="card-body">
                 <div class="d-flex flex-start">
-                    <span class="bi bi-heart py-4 me-4"><p class="text-center text-secondary">{{ comment.likes }}</p></span>
                     
                     <div>
                         <h6 class="fw-bold mb-1">{{ comment.username }}</h6>
