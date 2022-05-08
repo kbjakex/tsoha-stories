@@ -22,17 +22,17 @@ CREATE TABLE tags (
 
 CREATE TABLE comments (
     id SERIAL PRIMARY KEY,
-    post_id INTEGER REFERENCES posts,
-    user_id INTEGER REFERENCES users,
+    post_id INTEGER REFERENCES posts (id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users (id) ON DELETE CASCADE,
     sent_at TIMESTAMP NOT NULL,
     content TEXT NOT NULL
 );
 
 CREATE TABLE likes (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users,
-    post_id INTEGER REFERENCES posts,
-    comment_id INTEGER REFERENCES comments,
+    user_id INTEGER REFERENCES users (id) ON DELETE CASCADE,
+    post_id INTEGER REFERENCES posts (id) ON DELETE CASCADE,
+    comment_id INTEGER REFERENCES comments (id) ON DELETE CASCADE,
     liked_at TIMESTAMP NOT NULL,
     UNIQUE(user_id, post_id, comment_id)
 );

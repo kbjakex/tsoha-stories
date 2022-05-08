@@ -1,12 +1,12 @@
 from crypt import methods
 from app import app
-from db import db
+from db import User, Post
+import db
 from flask import redirect, render_template, request, abort, session
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 import secrets
 import json
-from datetime import datetime, timedelta
 
 from urllib.parse import urlparse, urljoin
 
@@ -20,34 +20,9 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
-class User(UserMixin):
-    def __init__(self, id, username, password):
-        self.id = id
-        self.username = username
-        self.password = password
-        self.sort_mode = "newest"
-
-class Post:
-    def __init__(self, id, title, content, sent_at, author, tags):
-        self.id = id
-        self.title = title
-        self.content = content
-        self.author = author
-        self.sent_at = sent_at
-        self.tags = tags
-        self.num_likes = 0
-        self.liked = False
-        self.num_comments = 0
-        self.comments = []
-
 @login_manager.user_loader
 def load_user(user_id):
-    sql = "SELECT * FROM users WHERE id = :id"
-    user = db.session.execute(sql, {"id": user_id}).fetchone()
-    if user is None:
-        return None
-    
-    return User(user[0], user[1], user[2])
+    return db.get_user_by_id(user_id)
 
 @app.route("/")
 def index():
@@ -57,35 +32,11 @@ def index():
     if not current_user is None:
         current_user.sort_mode = sort
 
-    sql = "SELECT P.id, P.title, P.content, P.sent_at, U.username, T.name FROM users U, posts P LEFT JOIN tags T ON P.id = T.post_id WHERE U.id = P.user_id"
-    result = db.session.execute(sql)
-    posts_raw = result.fetchall()
-
-    posts = []
-    last_post_id = None
-    for post in posts_raw:
-        if last_post_id != post[0]:
-            posts.append(Post(post[0], post[1], post[2], post[3], post[4], []))
-            last_post_id = post[0]
-        if post[5] is not None:
-            posts[-1].tags.append(post[5])
-
-    sql = "SELECT P.id, (SELECT COUNT(*) FROM Likes L WHERE L.post_id = P.id), (SELECT COUNT(*) FROM Comments C WHERE C.post_id = P.id) FROM posts P GROUP BY P.id"
-    likes_and_comments = db.session.execute(sql).fetchall()
-
-    for stats in likes_and_comments:
-        for post in posts:
-            if post.id == stats[0]:
-                post.num_likes = stats[1]
-                post.num_comments = stats[2]
-
+    user_id = None
     if current_user.is_authenticated:
-        sql = "SELECT P.id FROM posts P, likes L WHERE L.user_id = :user_id AND L.post_id = P.id"
-        liked_posts = db.session.execute(sql, {"user_id": current_user.id}).fetchall()
-        for post in posts:
-            for liked_post in liked_posts:
-                if post.id == liked_post[0]:
-                    post.liked = True
+        user_id = current_user.id
+
+    posts = db.get_all_posts(user_id)
 
     if not sort is None:
         if current_user.sort_mode == "newest":
@@ -109,12 +60,11 @@ def login():
         username = request.form["username"]
         password = request.form["password"]
         
-        sql = "SELECT * FROM users WHERE username = :username"
-        user = db.session.execute(sql, {"username": username}).fetchone()
+        user = db.get_user_by_username(username)
 
-        if not user is None and check_password_hash(user["password"], password):
+        if not user is None and check_password_hash(user.password, password):
             # lets see if it can just accept the user like this 
-            login_user(User(user[0], user[1], user[2]))
+            login_user(user)
             session["csrf_token"] = secrets.token_hex(16)
             return redirect(next or "/")
         else:
@@ -128,25 +78,29 @@ def register():
     last_error = None
 
     if request.method == "POST":
+        next = request.args.get("next")
+        if not next is None and not is_safe_url(next):
+            return abort(400)
+
         username = request.form["username"]
         password1 = request.form["password1"]
         password2 = request.form["password2"]
 
         if password1 != password2:
-            last_error = "Passwords do not match"
-        else:
-            sql = "SELECT * FROM users WHERE username = :username"
-            user = db.session.execute(sql, {"username": username}).fetchone()
+            return render_template("register.html", last_form_error = "Passwords do not match")
 
-            if not user is None:
-                last_error = "Username is taken"
-            else:
-                password = generate_password_hash(password1)
-                sql = "INSERT INTO users (username, password) VALUES (:username, :password)"
-                db.session.execute(sql, {"username": username, "password": password })
-                db.session.commit()
+        user = db.get_user_by_username(username)
 
-                return redirect("/login")
+        if not user is None:
+            return render_template("register.html", last_form_error = "Username is taken")
+
+        password = generate_password_hash(password1)
+
+        user = db.create_user(username, password)
+        login_user(user)
+        session["csrf_token"] = secrets.token_hex(16)
+
+        return redirect(next or "/")
 
     return render_template("register.html", last_form_error=last_error)
     
@@ -160,37 +114,22 @@ def logout():
 @app.route("/new",methods=["GET", "POST"])
 @login_required
 def addstory():
-    if request.method == "POST":
-        if session["csrf_token"] != request.form["csrf_token"]:
-            return abort(403)
+    if request.method != "POST":
+        return render_template("newstory.html")
 
-        username = current_user.username
-        title = request.form["title"]
-        contents = request.form["content"]
+    if session["csrf_token"] != request.form["csrf_token"]:
+        return abort(403)
 
-        result = db.session.execute("SELECT id FROM users WHERE username=:username", {"username":username}).fetchone()
-        if not result:
-            abort(401) # Access denied: cannot happen without intentionally malicious use of the website...
-            return
+    title = request.form["title"]
+    contents = request.form["content"]
+    tags = request.form["tags"]
 
-        user_id = result[0]
+    if tags is not None and len(tags) > 0:
+        tags = [tag['value'] for tag in json.loads(tags)]
 
-        rowid = db.session.execute("INSERT INTO posts (title, content, user_id, parent_id, sent_at) VALUES (:title, :content, :user_id, NULL, NOW()) RETURNING posts.id", {"title":title, "content":contents, "user_id":user_id}).fetchone()[0]
-        db.session.commit()
+    post_id = db.create_post(title, contents, current_user.id, tags)
 
-        # tagify outputs the tags in json format.
-        tags = request.form["tags"]
-        if not tags is None and len(tags) > 0:
-            print("Tags: ",tags)
-            json_tags = json.loads(tags)
-            for json_tag in json_tags:
-                tagname = json_tag['value'] 
-                db.session.execute("INSERT INTO tags (name, post_id) VALUES (:name, :post_id)", {"post_id":rowid, "name":tagname})
-                db.session.commit()
-
-        return redirect(f"/posts/{rowid}")
-
-    return render_template("newstory.html")
+    return redirect(f"/posts/{post_id}")
 
 @app.route("/posts/<int:id>", methods=["GET", "POST"])
 def page(id):
@@ -202,43 +141,16 @@ def page(id):
 
         comment = request.form.get("content")
         if not comment is None and len(comment) > 0:
-            user_id = current_user.id
-
-            sql = "INSERT INTO comments (post_id, user_id, sent_at, content) VALUES (:post_id, :user_id, NOW(), :content)"
-            db.session.execute(sql, {"post_id":id, "user_id":user_id, "content":comment})
-            db.session.commit()
+            db.create_comment(id, comment, current_user.id)
             return redirect('#')
 
-    sql = "SELECT P.id, P.title, P.content, P.sent_at, U.username, U.id, T.name FROM users U, posts P LEFT JOIN tags T ON P.id = T.post_id WHERE U.id = P.user_id AND P.id = :post_id"
-    post_raw_all = db.session.execute(sql, {"post_id": id}).fetchall()
-
-    if post_raw_all is None or len(post_raw_all) == 0:
-        abort(404)
-    
-    post_raw = post_raw_all[0]
-    post = Post(post_raw[0], post_raw[1], post_raw[2], post_raw[3], post_raw[4], [])
-    for tuple in post_raw_all:
-        if tuple[6] is not None:
-            post.tags.append(tuple[6])
-
-    # Check if user has liked the post
+    user_id = None
     if current_user.is_authenticated:
-        sql = "SELECT COUNT(*), SUM(CASE WHEN U.id = :user_id THEN 1 ELSE 0 END) FROM users U, likes L WHERE U.id = L.user_id AND L.post_id = :post_id"
-        likes = db.session.execute(sql, {"post_id": id, "user_id": current_user.id}).fetchone()
-        if not likes[1] is None and likes[1] > 0:
-            post.liked = True
+        user_id = current_user.id
 
-        post.num_likes = likes[0]
-        post.can_delete = current_user.id == post_raw[5]
-        post.can_edit = post.can_delete and not post.sent_at < datetime.now() - timedelta(minutes=30)
-
-    sql = "SELECT P.id, U.username FROM users U, posts P WHERE U.id = P.user_id AND P.parent_id = :post_id"
-    continuations = db.session.execute(sql, {"post_id": id}).fetchall()
-
-    post.continuations = continuations
-
-    sql = "SELECT U.username, C.content, C.sent_at, COUNT(L.id) FROM users U, comments C LEFT JOIN Likes L ON L.comment_id = C.id WHERE C.post_id = :post_id AND U.id = C.user_id GROUP BY C.id, U.id ORDER BY C.sent_at DESC"
-    post.comments = db.session.execute(sql, {"post_id":id}).fetchall()
+    post = db.get_post_by_id(id, user_id)
+    if post is None:
+        return abort(404)
 
     return render_template("storypage.html", post = post) 
 
@@ -250,25 +162,15 @@ def like(id):
     if session["csrf_token"] != json.loads(request.data)["token"]:
         return abort(403)
 
-    sql = "SELECT * FROM likes WHERE user_id = :user_id AND post_id = :post_id"
-    result = db.session.execute(sql, {"user_id":current_user.id, "post_id":id})
-    liked = "false"
-    if result.fetchone() is None:
-        liked = "true"
-        db.session.execute("INSERT INTO likes (user_id, post_id, liked_at) VALUES (:user_id, :post_id, NOW())", {"user_id": current_user.id, "post_id":id})
-        db.session.commit()
-    else:
-        db.session.execute("DELETE FROM likes WHERE user_id = :user_id AND post_id = :post_id", {"user_id": current_user.id, "post_id":id})
-        db.session.commit()
-    return f"{{ \"liked\": {liked}, \"num_likes\": " + str(db.session.execute("SELECT COUNT(*) FROM likes WHERE post_id = :post_id", {"post_id":id}).fetchone()[0]) + " }"
+    liked = db.like_post(id, current_user.id)
+    liked = "true" if liked else "false"
+
+    likes = db.get_like_count_for_post(id)
+
+    return f"{{ \"liked\": {liked}, \"num_likes\": {likes} }}"
 
 @app.route("/api/posts/<int:id>/delete", methods=["GET", "POST"])
 @login_required
 def delete(id):
-    sql = "SELECT * FROM posts WHERE id = :id AND user_id = :user_id"
-    result = db.session.execute(sql, {"id":id, "user_id":current_user.id})
-    if result.fetchone() is None:
-        abort(401)
-    db.session.execute("DELETE FROM posts WHERE id = :id", {"id":id})
-    db.session.commit()
+    db.delete_post(id, current_user.id)
     return redirect("/")
