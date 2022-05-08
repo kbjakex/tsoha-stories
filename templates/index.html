@@ -53,9 +53,10 @@
     <script>
         $(document).ready(function () {
             $('#btn-like-{{ post.id }}').click(function () {
-                const update = { post_id: {{ post.id }} };
+                const update = { token: '{{ session.csrf_token }}' };
                 const options = { method: 'POST', headers: { 'Content-Type': 'application/json', }, body: JSON.stringify(update), };
-                fetch('/api/posts/{{ post.id }}/like')
+                console.log(options);
+                fetch('/api/posts/{{ post.id }}/like', options)
                     .then(response => response.json())
                     .then(data => {
                         if (data.liked) {

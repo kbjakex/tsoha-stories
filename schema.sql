@@ -16,7 +16,7 @@ CREATE TABLE posts (
 CREATE TABLE tags (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
-    post_id INTEGER REFERENCES posts,
+    post_id INTEGER REFERENCES posts (id) ON DELETE CASCADE,
     UNIQUE(name, post_id)
 );
 
