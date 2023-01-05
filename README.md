@@ -16,4 +16,4 @@ Sovelluksen ominaisuuksia:
 
 Kurssi on päättynyt ja sovellusta ei enää kehitetä.
 
-Sovelluksen Heroku-URL on https://tsoha-stories.herokuapp.com/.
+Sovelluksen Heroku-URL oli https://tsoha-stories.herokuapp.com/, mutta Heroku on nykyään maksullinen.
